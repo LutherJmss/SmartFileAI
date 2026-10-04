@@ -1,0 +1,11 @@
+<Application x:Class="SmartFileAI.UI.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:SmartFileAI.UI.Converters">
+    <Application.Resources>
+        <ResourceDictionary>
+            <converters:FileSizeConverter x:Key="FileSizeConverter" />
+            <BooleanToVisibilityConverter x:Key="BoolToVisConverter" />
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
