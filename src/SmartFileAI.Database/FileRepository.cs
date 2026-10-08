@@ -3,6 +3,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using SmartFileAI.Core.Interfaces;
 using SmartFileAI.Core.Models.Entities;
+using SmartFileAI.Core.Models.Enums;
 
 namespace SmartFileAI.Database;
 
@@ -117,7 +118,10 @@ ON CONFLICT(FullPath) DO UPDATE SET
     public Task<IEnumerable<FileItem>> SearchFilesAsync(string keyword, string? extension = null, int limit = 500)
         => SearchFilesAsync(keyword, extension, limit, scopePath: null);
 
-    public async Task<IEnumerable<FileItem>> SearchFilesAsync(string keyword, string? extension, int limit, string? scopePath)
+    public Task<IEnumerable<FileItem>> SearchFilesAsync(string keyword, string? extension, int limit, string? scopePath)
+        => SearchFilesAsync(keyword, extension, limit, scopePath, FileSortMode.NameAscending);
+
+    public async Task<IEnumerable<FileItem>> SearchFilesAsync(string keyword, string? extension, int limit, string? scopePath, FileSortMode sortMode)
     {
         ThrowIfDisposed();
         await using var context = CreateContext();
@@ -152,7 +156,7 @@ ON CONFLICT(FullPath) DO UPDATE SET
         if (!string.IsNullOrWhiteSpace(trimmedKeyword))
         {
             string pattern = $"%{EscapeLikePattern(trimmedKeyword)}%";
-            query = query.Where(f => EF.Functions.Like(f.Name, pattern, "\\"));
+            query = query.Where(f => EF.Functions.Like(f.Name, pattern, "\"));
         }
 
         if (!string.IsNullOrWhiteSpace(effectiveExtension))
@@ -161,9 +165,7 @@ ON CONFLICT(FullPath) DO UPDATE SET
             query = query.Where(f => f.Extension.ToLower() == extLower);
         }
 
-        return await query
-            .OrderByDescending(f => f.IsDirectory)
-            .ThenBy(f => f.Name)
+        return await ApplySorting(query, sortMode)
             .Take(limit)
             .ToListAsync();
     }
@@ -220,17 +222,27 @@ ON CONFLICT(FullPath) DO UPDATE SET
         return normalized.StartsWith('.') ? normalized : "." + normalized;
     }
 
-    public async Task<IEnumerable<FileItem>> GetFilesByDirectoryAsync(string directoryPath)
+    public Task<IEnumerable<FileItem>> GetFilesByDirectoryAsync(string directoryPath)
+        => GetFilesByDirectoryAsync(directoryPath, FileSortMode.NameAscending);
+
+    public async Task<IEnumerable<FileItem>> GetFilesByDirectoryAsync(string directoryPath, FileSortMode sortMode)
     {
         ThrowIfDisposed();
         string normalized = NormalizeDirectoryPath(directoryPath);
         await using var context = CreateContext();
-        return await context.Files.AsNoTracking()
-            .Where(f => f.ParentPath == normalized)
-            .OrderByDescending(f => f.IsDirectory)
-            .ThenBy(f => f.Name)
-            .ToListAsync();
+        var query = context.Files.AsNoTracking().Where(f => f.ParentPath == normalized);
+        return await ApplySorting(query, sortMode).ToListAsync();
     }
+
+    private static IOrderedQueryable<FileItem> ApplySorting(IQueryable<FileItem> query, FileSortMode sortMode)
+        => sortMode switch
+        {
+            FileSortMode.ModifiedNewest => query.OrderByDescending(f => f.IsDirectory)
+                .ThenByDescending(f => f.ModifiedTime).ThenBy(f => f.Name),
+            FileSortMode.ModifiedOldest => query.OrderByDescending(f => f.IsDirectory)
+                .ThenBy(f => f.ModifiedTime).ThenBy(f => f.Name),
+            _ => query.OrderByDescending(f => f.IsDirectory).ThenBy(f => f.Name)
+        };
 
     public async Task DeleteFileRecordAsync(string fullPath)
     {
@@ -343,7 +355,7 @@ WHERE FullPath = {normalized} COLLATE NOCASE
         return Path.GetFullPath(path);
     }
 
-    private static string EscapeLikePattern(string value) => value.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
+    private static string EscapeLikePattern(string value) => value.Replace("\", "\\").Replace("%", "\%").Replace("_", "\_");
 
     private void ThrowIfDisposed()
     {

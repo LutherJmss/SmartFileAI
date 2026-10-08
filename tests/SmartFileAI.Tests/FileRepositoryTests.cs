@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using SmartFileAI.Core.Models.Entities;
+using SmartFileAI.Core.Models.Enums;
 using SmartFileAI.Database;
 using Xunit;
 
@@ -107,7 +108,7 @@ public sealed class FileRepositoryTests : IDisposable
     {
         await SeedRc223DataAsync();
 
-        var results = (await _repository.SearchFilesAsync(query, null, 500, @"D:\Docs")).ToList();
+        var results = (await _repository.SearchFilesAsync(query, null, 500, @"D:Docs")).ToList();
 
         Assert.Single(results);
         Assert.Equal(expectedName, results[0].Name);
@@ -118,7 +119,7 @@ public sealed class FileRepositoryTests : IDisposable
     {
         await SeedRc223DataAsync();
 
-        var results = (await _repository.SearchFilesAsync("report.pdf", null, 500, @"D:\Docs")).ToList();
+        var results = (await _repository.SearchFilesAsync("report.pdf", null, 500, @"D:Docs")).ToList();
 
         Assert.Single(results);
         Assert.Equal("report.pdf", results[0].Name);
@@ -129,7 +130,7 @@ public sealed class FileRepositoryTests : IDisposable
     {
         await SeedRc223DataAsync();
 
-        var results = (await _repository.SearchFilesAsync("pdf", null, 500, @"d:\")).ToList();
+        var results = (await _repository.SearchFilesAsync("pdf", null, 500, @"d:")).ToList();
         var names = results.Select(x => x.Name).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
 
         Assert.Equal(4, names.Count);
@@ -142,12 +143,12 @@ public sealed class FileRepositoryTests : IDisposable
     {
         await SeedRc223DataAsync();
 
-        var results = (await _repository.SearchFilesAsync("pdf", null, 500, @"d:\docs")).ToList();
+        var results = (await _repository.SearchFilesAsync("pdf", null, 500, @"d:docs")).ToList();
         var names = results.Select(x => x.Name).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
 
         Assert.Equal(2, names.Count);
         Assert.Equal(new[] { "b.pdf", "report.pdf" }, names);
-        Assert.DoesNotContain(results, x => x.FullPath.StartsWith(@"D:\DocsBackup", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(results, x => x.FullPath.StartsWith(@"D:DocsBackup", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -155,7 +156,7 @@ public sealed class FileRepositoryTests : IDisposable
     {
         await SeedRc223DataAsync();
 
-        var results = (await _repository.SearchFilesAsync("_", null, 500, @"D:\Docs")).ToList();
+        var results = (await _repository.SearchFilesAsync("_", null, 500, @"D:Docs")).ToList();
         var names = results.Select(x => x.Name).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
 
         Assert.Equal(5, names.Count);
@@ -168,6 +169,169 @@ public sealed class FileRepositoryTests : IDisposable
             "test_100%.txt"
         }, names);
         Assert.All(results, x => Assert.Contains("_", x.Name, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Phase7A_NameAscending_PreservesDefaultOverloads()
+    {
+        string parent = NewSortingParent();
+        await _repository.BulkInsertOrUpdateAsync(new[]
+        {
+            SortingItem(parent, "Zebra.txt", 1),
+            SortingItem(parent, "Beta", 2, isDirectory: true),
+            SortingItem(parent, "Apple.txt", 3),
+            SortingItem(parent, "Alpha", 4, isDirectory: true)
+        });
+        var expected = new[] { "Alpha", "Beta", "Apple.txt", "Zebra.txt" };
+
+        Assert.Equal(expected, (await _repository.GetFilesByDirectoryAsync(parent, FileSortMode.NameAscending)).Select(x => x.Name));
+        Assert.Equal(expected, (await _repository.GetFilesByDirectoryAsync(parent)).Select(x => x.Name));
+        Assert.Equal(expected, (await _repository.SearchFilesAsync(string.Empty)).Select(x => x.Name));
+        Assert.Equal(expected, (await _repository.SearchFilesAsync(string.Empty, null, 500, parent)).Select(x => x.Name));
+    }
+
+    [Fact]
+    public async Task Phase7A_ModifiedNewest_OrdersByDescendingModifiedTime()
+    {
+        string parent = NewSortingParent();
+        await _repository.BulkInsertOrUpdateAsync(new[]
+        {
+            SortingItem(parent, "Alpha.txt", 1),
+            SortingItem(parent, "Middle.txt", 2),
+            SortingItem(parent, "Zebra.txt", 3)
+        });
+
+        var results = await _repository.GetFilesByDirectoryAsync(parent, FileSortMode.ModifiedNewest);
+        Assert.Equal(new[] { "Zebra.txt", "Middle.txt", "Alpha.txt" }, results.Select(x => x.Name));
+    }
+
+    [Fact]
+    public async Task Phase7A_ModifiedOldest_OrdersByAscendingModifiedTime()
+    {
+        string parent = NewSortingParent();
+        await _repository.BulkInsertOrUpdateAsync(new[]
+        {
+            SortingItem(parent, "Alpha.txt", 3),
+            SortingItem(parent, "Middle.txt", 2),
+            SortingItem(parent, "Zebra.txt", 1)
+        });
+
+        var results = await _repository.GetFilesByDirectoryAsync(parent, FileSortMode.ModifiedOldest);
+        Assert.Equal(new[] { "Zebra.txt", "Middle.txt", "Alpha.txt" }, results.Select(x => x.Name));
+    }
+
+    [Fact]
+    public async Task Phase7A_AllSortModes_KeepDirectoriesBeforeFiles()
+    {
+        string parent = NewSortingParent();
+        await _repository.BulkInsertOrUpdateAsync(new[]
+        {
+            SortingItem(parent, "A_File.txt", 100),
+            SortingItem(parent, "B_File.txt", -100),
+            SortingItem(parent, "Z_Directory", 1, isDirectory: true),
+            SortingItem(parent, "Y_Directory", 2, isDirectory: true)
+        });
+
+        foreach (var mode in Enum.GetValues<FileSortMode>())
+        {
+            var directoryRows = (await _repository.GetFilesByDirectoryAsync(parent, mode)).ToList();
+            var searchRows = (await _repository.SearchFilesAsync(string.Empty, null, 500, parent, mode)).ToList();
+            foreach (var rows in new[] { directoryRows, searchRows })
+            {
+                Assert.Equal(4, rows.Count);
+                Assert.All(rows.Take(2), item => Assert.True(item.IsDirectory));
+                Assert.All(rows.Skip(2), item => Assert.False(item.IsDirectory));
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Phase7A_EqualModifiedTimes_UseDeterministicNameTieBreak()
+    {
+        string parent = NewSortingParent();
+        await _repository.BulkInsertOrUpdateAsync(new[]
+        {
+            SortingItem(parent, "match_Zebra.txt", 1),
+            SortingItem(parent, "match_Apple.txt", 1),
+            SortingItem(parent, "match_Middle.txt", 1)
+        });
+        var expected = new[] { "match_Apple.txt", "match_Middle.txt", "match_Zebra.txt" };
+
+        foreach (var mode in new[] { FileSortMode.ModifiedNewest, FileSortMode.ModifiedOldest })
+        {
+            Assert.Equal(expected, (await _repository.GetFilesByDirectoryAsync(parent, mode)).Select(x => x.Name));
+            Assert.Equal(expected, (await _repository.SearchFilesAsync("match", null, 500, parent, mode)).Select(x => x.Name));
+        }
+    }
+
+    [Fact]
+    public async Task Phase7A_ScopedModifiedNewest_PreservesExtensionParsingAndBoundary()
+    {
+        await AssertSortedScopeAsync(FileSortMode.ModifiedNewest, new[] { "b.pdf", "a.pdf" });
+    }
+
+    [Fact]
+    public async Task Phase7A_ScopedModifiedOldest_PreservesExtensionParsingAndBoundary()
+    {
+        await AssertSortedScopeAsync(FileSortMode.ModifiedOldest, new[] { "a.pdf", "b.pdf" });
+    }
+
+    [Fact]
+    public async Task Phase7A_ModifiedNewest_SortsBeforeTakingFiveHundredResults()
+    {
+        string parent = NewSortingParent();
+        var items = Enumerable.Range(0, 550)
+            .Select(i => SortingItem(parent, $"match_{i:D4}.txt", i)).ToList();
+        // Last inserted and last alphabetically: excluded by taking insertion/name order first.
+        var newest = SortingItem(parent, "match_zz_latest.txt", 10_000);
+        items.Add(newest);
+        await _repository.BulkInsertOrUpdateAsync(items);
+        Assert.Equal(551, (await _repository.GetFilesByDirectoryAsync(parent)).Count());
+
+        var results = (await _repository.SearchFilesAsync("match", null, 500, parent, FileSortMode.ModifiedNewest)).ToList();
+
+        Assert.Equal(500, results.Count);
+        Assert.Equal(newest.FullPath, results[0].FullPath);
+        Assert.Contains(results, item => item.FullPath == newest.FullPath);
+        Assert.Equal("match_0051.txt", results[^1].Name);
+        Assert.DoesNotContain(results, item => item.Name == "match_0000.txt");
+        for (int i = 1; i < results.Count; i++)
+            Assert.True(results[i - 1].ModifiedTime >= results[i].ModifiedTime);
+    }
+
+    private async Task AssertSortedScopeAsync(FileSortMode mode, string[] expected)
+    {
+        string root = NewSortingParent();
+        string scope = Path.Combine(root, "Docs");
+        string nested = Path.Combine(scope, "Sub");
+        await _repository.BulkInsertOrUpdateAsync(new[]
+        {
+            SortingItem(scope, "a.pdf", 1),
+            SortingItem(nested, "b.pdf", 2),
+            SortingItem(scope, "pdf_notes.txt", 100),
+            SortingItem(Path.Combine(root, "DocsBackup"), "outside.pdf", 200),
+            SortingItem(Path.Combine(root, "Other"), "other.pdf", -200)
+        });
+
+        foreach (var keyword in new[] { "pdf", ".pdf", "*.pdf", "PDF", ".PDF", "*.PDF" })
+        {
+            var rows = (await _repository.SearchFilesAsync(keyword, null, 500, scope.ToUpperInvariant(), mode)).ToList();
+            Assert.Equal(expected, rows.Select(x => x.Name));
+            Assert.All(rows, item => Assert.Equal(".pdf", item.Extension, ignoreCase: true));
+        }
+    }
+
+    private static string NewSortingParent()
+        => Path.Combine(Path.GetTempPath(), "SmartFileAI_Sorting_" + Guid.NewGuid().ToString("N"));
+
+    private static FileItem SortingItem(string parent, string name, int modifiedDay, bool isDirectory = false)
+    {
+        var item = NewFile(Path.Combine(parent, name), parent, isDirectory ? 0 : 42);
+        item.IsDirectory = isDirectory;
+        item.ModifiedTime = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddDays(modifiedDay);
+        item.Extension = isDirectory ? string.Empty : item.Extension;
+        item.Attributes = isDirectory ? FileAttributes.Directory : FileAttributes.Normal;
+        return item;
     }
 
     private async Task SeedRc223DataAsync()
@@ -186,16 +350,16 @@ public sealed class FileRepositoryTests : IDisposable
 
         await _repository.BulkInsertOrUpdateAsync(new[]
         {
-            Item(@"C:\Docs\a.pdf", 100),
-            Item(@"D:\Docs\b.pdf", 200),
-            Item(@"D:\Other\c.pdf", 300),
-            Item(@"D:\DocsBackup\d.pdf", 400),
-            Item(@"D:\Docs\annual_report.docx", 500),
-            Item(@"D:\Docs\code_project.txt", 600),
-            Item(@"D:\Docs\pdf_notes.txt", 700),
-            Item(@"D:\Docs\report.pdf", 800),
-            Item(@"D:\Docs\test_100%.txt", 900),
-            Item(@"D:\Docs\file_with_underscore.txt", 1000)
+            Item(@"C:Docsa.pdf", 100),
+            Item(@"D:Docs.pdf", 200),
+            Item(@"D:Otherc.pdf", 300),
+            Item(@"D:DocsBackupd.pdf", 400),
+            Item(@"D:Docsannual_report.docx", 500),
+            Item(@"D:Docscode_project.txt", 600),
+            Item(@"D:Docspdf_notes.txt", 700),
+            Item(@"D:Docseport.pdf", 800),
+            Item(@"D:Docs	est_100%.txt", 900),
+            Item(@"D:Docsile_with_underscore.txt", 1000)
         });
     }
 

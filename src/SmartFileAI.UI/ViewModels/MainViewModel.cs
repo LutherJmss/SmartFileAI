@@ -15,6 +15,8 @@ using SmartFileAI.Core.Models.Enums;
 
 namespace SmartFileAI.UI.ViewModels;
 
+public sealed record SortOption(FileSortMode Mode, string DisplayName);
+
 public partial class MainViewModel : ObservableObject
 {
     private readonly IFileScanner _scanner;
@@ -32,6 +34,14 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private long _scannedDirCount;
     [ObservableProperty] private long _scannedTotalBytes;
     [ObservableProperty] private string _searchKeyword = string.Empty;
+    [ObservableProperty] private FileSortMode _selectedSortMode = FileSortMode.NameAscending;
+
+    public IReadOnlyList<SortOption> SortOptions { get; } = new[]
+    {
+        new SortOption(FileSortMode.NameAscending, "名称"),
+        new SortOption(FileSortMode.ModifiedNewest, "修改时间：最新优先"),
+        new SortOption(FileSortMode.ModifiedOldest, "修改时间：最旧优先")
+    };
 
     public ObservableCollection<DirectoryNodeViewModel> Drives => RootDrives;
 
@@ -49,7 +59,7 @@ public partial class MainViewModel : ObservableObject
         foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady))
         {
             string label = string.IsNullOrWhiteSpace(drive.VolumeLabel) ? "本地磁盘" : drive.VolumeLabel;
-            RootDrives.Add(new DirectoryNodeViewModel($"{label} ({drive.Name.TrimEnd('\\')})", drive.RootDirectory.FullName, true));
+            RootDrives.Add(new DirectoryNodeViewModel($"{label} ({drive.Name.TrimEnd('\')})", drive.RootDirectory.FullName, true));
         }
     }
 
@@ -61,6 +71,14 @@ public partial class MainViewModel : ObservableObject
             _ = LoadFilesSafelyAsync(value!.FullPath);
         else
             _ = SearchAsync();
+    }
+
+    partial void OnSelectedSortModeChanged(FileSortMode value)
+    {
+        if (!string.IsNullOrWhiteSpace(SearchKeyword))
+            _ = SearchAsync();
+        else if (IsUsableDirectoryNode(SelectedNode))
+            _ = LoadFilesSafelyAsync(SelectedNode!.FullPath);
     }
 
     private static bool IsUsableDirectoryNode(DirectoryNodeViewModel? node)
@@ -83,13 +101,15 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        var dbFiles = (await _repository.GetFilesByDirectoryAsync(directoryPath)).ToList();
+        var sortMode = SelectedSortMode;
+        var dbFiles = (await _repository.GetFilesByDirectoryAsync(directoryPath, sortMode)).ToList();
         List<FileItem> items = dbFiles;
         if (items.Count == 0 && Directory.Exists(directoryPath))
         {
-            items = await Task.Run(() => EnumerateDirectorySnapshot(directoryPath));
+            items = ApplyLocalSorting(await Task.Run(() => EnumerateDirectorySnapshot(directoryPath)), sortMode).ToList();
         }
 
+        if (sortMode != SelectedSortMode) return;
         CurrentFiles.Clear();
         foreach (var item in items) CurrentFiles.Add(item);
         StatusMessage = $"已加载 {CurrentFiles.Count:N0} 个项目";
@@ -129,6 +149,16 @@ public partial class MainViewModel : ObservableObject
         return result.OrderByDescending(x => x.IsDirectory).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
+    private static IOrderedEnumerable<FileItem> ApplyLocalSorting(IEnumerable<FileItem> items, FileSortMode sortMode)
+        => sortMode switch
+        {
+            FileSortMode.ModifiedNewest => items.OrderByDescending(f => f.IsDirectory)
+                .ThenByDescending(f => f.ModifiedTime).ThenBy(f => f.Name, StringComparer.OrdinalIgnoreCase),
+            FileSortMode.ModifiedOldest => items.OrderByDescending(f => f.IsDirectory)
+                .ThenBy(f => f.ModifiedTime).ThenBy(f => f.Name, StringComparer.OrdinalIgnoreCase),
+            _ => items.OrderByDescending(f => f.IsDirectory).ThenBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
+        };
+
     [RelayCommand]
     public async Task SearchAsync()
     {
@@ -144,7 +174,9 @@ public partial class MainViewModel : ObservableObject
             }
 
             string? scopePath = IsUsableDirectoryNode(SelectedNode) ? SelectedNode!.FullPath : null;
-            var results = await _repository.SearchFilesAsync(SearchKeyword.Trim(), null, 500, scopePath);
+            var sortMode = SelectedSortMode;
+            var results = await _repository.SearchFilesAsync(SearchKeyword.Trim(), null, 500, scopePath, sortMode);
+            if (sortMode != SelectedSortMode) return;
 
             CurrentFiles.Clear();
             foreach (var file in results) CurrentFiles.Add(file);
@@ -238,8 +270,14 @@ public partial class MainViewModel : ObservableObject
         var target = SelectedFile;
 
         string text = permanent
-            ? $"即将永久删除：\n{target.FullPath}\n\n此操作不可恢复。是否继续？"
-            : $"将以下项目移入回收站：\n{target.FullPath}\n\n是否继续？";
+            ? $"即将永久删除：
+{target.FullPath}
+
+此操作不可恢复。是否继续？"
+            : $"将以下项目移入回收站：
+{target.FullPath}
+
+是否继续？";
         string title = permanent ? "确认永久删除" : "确认移入回收站";
         if (MessageBox.Show(text, title, MessageBoxButton.YesNo, permanent ? MessageBoxImage.Warning : MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
             return;
