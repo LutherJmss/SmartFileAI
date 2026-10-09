@@ -156,7 +156,7 @@ ON CONFLICT(FullPath) DO UPDATE SET
         if (!string.IsNullOrWhiteSpace(trimmedKeyword))
         {
             string pattern = $"%{EscapeLikePattern(trimmedKeyword)}%";
-            query = query.Where(f => EF.Functions.Like(f.Name, pattern, "\"));
+            query = query.Where(f => EF.Functions.Like(f.Name, pattern, "\\"));
         }
 
         if (!string.IsNullOrWhiteSpace(effectiveExtension))
@@ -355,7 +355,7 @@ WHERE FullPath = {normalized} COLLATE NOCASE
         return Path.GetFullPath(path);
     }
 
-    private static string EscapeLikePattern(string value) => value.Replace("\", "\\").Replace("%", "\%").Replace("_", "\_");
+    private static string EscapeLikePattern(string value) => value.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
 
     private void ThrowIfDisposed()
     {

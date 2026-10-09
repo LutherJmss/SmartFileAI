@@ -59,7 +59,7 @@ public partial class MainViewModel : ObservableObject
         foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady))
         {
             string label = string.IsNullOrWhiteSpace(drive.VolumeLabel) ? "本地磁盘" : drive.VolumeLabel;
-            RootDrives.Add(new DirectoryNodeViewModel($"{label} ({drive.Name.TrimEnd('\')})", drive.RootDirectory.FullName, true));
+            RootDrives.Add(new DirectoryNodeViewModel($"{label} ({drive.Name.TrimEnd('\\')})", drive.RootDirectory.FullName, true));
         }
     }
 
@@ -270,14 +270,8 @@ public partial class MainViewModel : ObservableObject
         var target = SelectedFile;
 
         string text = permanent
-            ? $"即将永久删除：
-{target.FullPath}
-
-此操作不可恢复。是否继续？"
-            : $"将以下项目移入回收站：
-{target.FullPath}
-
-是否继续？";
+            ? $"即将永久删除：\n{target.FullPath}\n\n此操作不可恢复。是否继续？"
+            : $"将以下项目移入回收站：\n{target.FullPath}\n\n是否继续？";
         string title = permanent ? "确认永久删除" : "确认移入回收站";
         if (MessageBox.Show(text, title, MessageBoxButton.YesNo, permanent ? MessageBoxImage.Warning : MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
             return;

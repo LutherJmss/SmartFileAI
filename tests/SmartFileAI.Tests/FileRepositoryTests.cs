@@ -108,7 +108,7 @@ public sealed class FileRepositoryTests : IDisposable
     {
         await SeedRc223DataAsync();
 
-        var results = (await _repository.SearchFilesAsync(query, null, 500, @"D:Docs")).ToList();
+        var results = (await _repository.SearchFilesAsync(query, null, 500, @"D:\Docs")).ToList();
 
         Assert.Single(results);
         Assert.Equal(expectedName, results[0].Name);
@@ -119,7 +119,7 @@ public sealed class FileRepositoryTests : IDisposable
     {
         await SeedRc223DataAsync();
 
-        var results = (await _repository.SearchFilesAsync("report.pdf", null, 500, @"D:Docs")).ToList();
+        var results = (await _repository.SearchFilesAsync("report.pdf", null, 500, @"D:\Docs")).ToList();
 
         Assert.Single(results);
         Assert.Equal("report.pdf", results[0].Name);
@@ -130,7 +130,7 @@ public sealed class FileRepositoryTests : IDisposable
     {
         await SeedRc223DataAsync();
 
-        var results = (await _repository.SearchFilesAsync("pdf", null, 500, @"d:")).ToList();
+        var results = (await _repository.SearchFilesAsync("pdf", null, 500, @"d:\")).ToList();
         var names = results.Select(x => x.Name).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
 
         Assert.Equal(4, names.Count);
@@ -143,12 +143,12 @@ public sealed class FileRepositoryTests : IDisposable
     {
         await SeedRc223DataAsync();
 
-        var results = (await _repository.SearchFilesAsync("pdf", null, 500, @"d:docs")).ToList();
+        var results = (await _repository.SearchFilesAsync("pdf", null, 500, @"d:\docs")).ToList();
         var names = results.Select(x => x.Name).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
 
         Assert.Equal(2, names.Count);
         Assert.Equal(new[] { "b.pdf", "report.pdf" }, names);
-        Assert.DoesNotContain(results, x => x.FullPath.StartsWith(@"D:DocsBackup", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(results, x => x.FullPath.StartsWith(@"D:\DocsBackup", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -156,7 +156,7 @@ public sealed class FileRepositoryTests : IDisposable
     {
         await SeedRc223DataAsync();
 
-        var results = (await _repository.SearchFilesAsync("_", null, 500, @"D:Docs")).ToList();
+        var results = (await _repository.SearchFilesAsync("_", null, 500, @"D:\Docs")).ToList();
         var names = results.Select(x => x.Name).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
 
         Assert.Equal(5, names.Count);
@@ -350,16 +350,16 @@ public sealed class FileRepositoryTests : IDisposable
 
         await _repository.BulkInsertOrUpdateAsync(new[]
         {
-            Item(@"C:Docsa.pdf", 100),
-            Item(@"D:Docs.pdf", 200),
-            Item(@"D:Otherc.pdf", 300),
-            Item(@"D:DocsBackupd.pdf", 400),
-            Item(@"D:Docsannual_report.docx", 500),
-            Item(@"D:Docscode_project.txt", 600),
-            Item(@"D:Docspdf_notes.txt", 700),
-            Item(@"D:Docseport.pdf", 800),
-            Item(@"D:Docs	est_100%.txt", 900),
-            Item(@"D:Docsile_with_underscore.txt", 1000)
+            Item(@"C:\Docs\a.pdf", 100),
+            Item(@"D:\Docs\b.pdf", 200),
+            Item(@"D:\Other\c.pdf", 300),
+            Item(@"D:\DocsBackup\d.pdf", 400),
+            Item(@"D:\Docs\annual_report.docx", 500),
+            Item(@"D:\Docs\code_project.txt", 600),
+            Item(@"D:\Docs\pdf_notes.txt", 700),
+            Item(@"D:\Docs\report.pdf", 800),
+            Item(@"D:\Docs\test_100%.txt", 900),
+            Item(@"D:\Docs\file_with_underscore.txt", 1000)
         });
     }
 
