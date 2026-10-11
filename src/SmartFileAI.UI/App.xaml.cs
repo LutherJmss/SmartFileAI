@@ -8,6 +8,8 @@ using SmartFileAI.FileOperations;
 using SmartFileAI.Scanner;
 using SmartFileAI.UI.ViewModels;
 using SmartFileAI.UI.Views;
+using SmartFileAI.UI.Services;
+using SmartFileAI.Core.Models.Cleanup;
 
 namespace SmartFileAI.UI;
 
@@ -27,10 +29,21 @@ public partial class App : Application
                 services.AddSingleton<IFileRepository>(_ => new FileRepository(_dbPath));
                 services.AddSingleton<IFileScanner, NormalScanner>();
                 services.AddSingleton<IFileOperationService, FileOperationService>();
+                services.AddCleanupExplorer(_dbPath, new WpfCleanupUiScheduler(Dispatcher));
+                services.AddTransient<CleanupCandidatesWindow>();
                 services.AddSingleton<MainViewModel>();
                 services.AddSingleton<MainWindow>();
             })
             .Build();
+    }
+
+    public void ShowCleanupExplorer(string scope)
+    {
+        string normalized = CleanupScopePath.Normalize(scope);
+        var window = _host.Services.GetRequiredService<CleanupCandidatesWindow>();
+        ((CleanupCandidatesViewModel)window.DataContext).InitializeScope(normalized);
+        window.Owner = MainWindow;
+        window.Show();
     }
 
     protected override async void OnStartup(StartupEventArgs e)

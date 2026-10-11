@@ -32,6 +32,7 @@
                               ToolTip="文件排序" />
                 </Grid>
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button Content="安全清理" Command="{Binding OpenCleanupExplorerCommand}" Padding="12,6" Margin="0,0,8,0" />
                     <Button Content="开始扫描" Command="{Binding StartScanCommand}" Padding="12,6" Margin="0,0,8,0" />
                     <Button Content="终止扫描" Command="{Binding CancelScanCommand}" Padding="12,6" Margin="0,0,14,0" />
                     <Button Content="移至回收站" Command="{Binding DeleteSelectedFileCommand}" CommandParameter="Recycle" Padding="12,6" Margin="0,0,8,0" />

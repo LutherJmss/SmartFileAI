@@ -262,6 +262,21 @@ public partial class MainViewModel : ObservableObject
     public void CancelScan() => _scanCts?.Cancel();
 
     [RelayCommand]
+    public void OpenCleanupExplorer()
+    {
+        if (!IsUsableDirectoryNode(SelectedNode))
+        {
+            StatusMessage = "请先选择一个目录或驱动器。";
+            return;
+        }
+        try
+        {
+            if (Application.Current is App app) app.ShowCleanupExplorer(SelectedNode!.FullPath);
+        }
+        catch (Exception ex) { StatusMessage = $"安全清理窗口打开失败：{ex.Message}"; }
+    }
+
+    [RelayCommand]
     public async Task DeleteSelectedFileAsync(string? mode)
     {
         if (SelectedFile is null) return;

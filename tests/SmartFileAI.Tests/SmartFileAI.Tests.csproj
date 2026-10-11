@@ -13,6 +13,7 @@
     <ProjectReference Include="..\..\src\SmartFileAI.FileOperations\SmartFileAI.FileOperations.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
     <PackageReference Include="xunit" Version="2.9.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
@@ -23,5 +24,12 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\..\src\SmartFileAI.UI\ViewModels\CleanupCandidateRowViewModel.cs" Link="CleanupExplorer\ViewModels\CleanupCandidateRowViewModel.cs" />
+    <Compile Include="..\..\src\SmartFileAI.UI\ViewModels\CleanupCandidateCollection.cs" Link="CleanupExplorer\ViewModels\CleanupCandidateCollection.cs" />
+    <Compile Include="..\..\src\SmartFileAI.UI\ViewModels\CleanupCandidatesViewModel.cs" Link="CleanupExplorer\ViewModels\CleanupCandidatesViewModel.cs" />
+    <Compile Include="..\..\src\SmartFileAI.UI\Services\ICleanupUiScheduler.cs" Link="CleanupExplorer\Services\ICleanupUiScheduler.cs" />
+    <Compile Include="..\..\src\SmartFileAI.UI\Services\CleanupExplorerServices.cs" Link="CleanupExplorer\Services\CleanupExplorerServices.cs" />
   </ItemGroup>
 </Project>

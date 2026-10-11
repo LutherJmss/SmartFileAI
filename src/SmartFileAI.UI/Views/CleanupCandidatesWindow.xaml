@@ -1,0 +1,93 @@
+<Window x:Class="SmartFileAI.UI.Views.CleanupCandidatesWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="安全清理 · 只读候选分析" Width="1250" Height="760" MinWidth="950" MinHeight="600"
+        WindowStartupLocation="CenterOwner" Closing="Window_Closing">
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/><RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <StackPanel Margin="0,0,0,12">
+            <TextBlock Text="安全清理候选分析" FontSize="22" FontWeight="Bold"/>
+            <TextBlock Text="本功能仅生成清理建议，不会自动删除文件。" Foreground="#92400E" Margin="0,6"/>
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="12,0,0,0">
+                    <Button Content="开始分析" Command="{Binding StartAnalysisCommand}" Padding="14,6" Margin="0,0,8,0"/>
+                    <Button Content="取消分析" Command="{Binding CancelAnalysisCommand}" Padding="14,6"/>
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="分析范围" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding ScopePath}" TextWrapping="Wrap"/>
+                </StackPanel>
+            </DockPanel>
+        </StackPanel>
+        <WrapPanel Grid.Row="1" Margin="0,0,0,12">
+            <TextBlock Text="{Binding AnalyzedCount, StringFormat='已分析数量：{0:N0}'}" Margin="0,0,16,0"/>
+            <TextBlock Text="{Binding CandidateCount, StringFormat='候选项目数量：{0:N0}'}" Margin="0,0,16,0"/>
+            <TextBlock Text="{Binding SafeCount, StringFormat='安全建议数量：{0:N0}'}" Margin="0,0,16,0"/>
+            <TextBlock Text="{Binding ReviewCount, StringFormat='需要复核数量：{0:N0}'}" Margin="0,0,16,0"/>
+            <TextBlock Text="{Binding ProtectedCount, StringFormat='受保护数量：{0:N0}'}" Margin="0,0,16,0"/>
+            <TextBlock Text="{Binding SelectedCount, StringFormat='已选数量：{0:N0}'}" Margin="0,0,16,0" FontWeight="Bold"/>
+            <TextBlock Text="{Binding SelectedEstimatedBytes, StringFormat='已选估算大小：{0:N0} 字节'}" FontWeight="Bold"/>
+        </WrapPanel>
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="5"/><ColumnDefinition Width="320"/></Grid.ColumnDefinitions>
+            <DataGrid ItemsSource="{Binding Candidates}" SelectedItem="{Binding SelectedCandidate, Mode=TwoWay}"
+                      AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" CanUserDeleteRows="False"
+                      EnableRowVirtualization="True" EnableColumnVirtualization="True" SelectionMode="Single"
+                      VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True">
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="选择" Width="48">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          IsEnabled="{Binding IsEligibleForSelection}" HorizontalAlignment="Center"
+                                          ToolTip="只有安全且建议的候选可以选择；选择不会执行删除。"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn Header="文件名称" Binding="{Binding FileName}" Width="150"/>
+                    <DataGridTextColumn Header="文件类型" Binding="{Binding Extension}" Width="75"/>
+                    <DataGridTextColumn Header="风险等级" Binding="{Binding RiskLevel}" Width="85"/>
+                    <DataGridTextColumn Header="清理建议" Binding="{Binding Recommendation}" Width="110"/>
+                    <DataGridTextColumn Header="文件大小" Binding="{Binding Size, Converter={StaticResource FileSizeConverter}}" Width="90"/>
+                    <DataGridTextColumn Header="修改时间" Binding="{Binding ModifiedTime, StringFormat={}{0:yyyy-MM-dd HH:mm}}" Width="145"/>
+                    <DataGridTextColumn Header="完整路径" Binding="{Binding FullPath}" Width="260"/>
+                </DataGrid.Columns>
+            </DataGrid>
+            <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" Background="#E5E7EB"/>
+            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" Margin="12,0,0,0">
+                <StackPanel>
+                    <TextBlock Text="候选详情" FontSize="16" FontWeight="Bold" Margin="0,0,0,12"/>
+                    <TextBlock Text="完整路径" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding SelectedCandidate.FullPath}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                    <TextBlock Text="垃圾分类" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding SelectedCandidate.Category}" Margin="0,0,0,10"/>
+                    <TextBlock Text="安全等级" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding SelectedCandidate.RiskLevel}" Margin="0,0,0,10"/>
+                    <TextBlock Text="清理建议" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding SelectedCandidate.Recommendation}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                    <TextBlock Text="分析原因" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding SelectedCandidate.Reason}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                    <TextBlock Text="判断证据" FontWeight="SemiBold"/>
+                    <ItemsControl ItemsSource="{Binding SelectedCandidate.Evidence}" Margin="0,0,0,10">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,3"/></DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="管理员权限说明" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding SelectedCandidate.ElevationExplanation}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                    <TextBlock Text="恢复能力说明" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding SelectedCandidate.ReversibilityExplanation}" TextWrapping="Wrap"/>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+        <StackPanel Grid.Row="3" Margin="0,12,0,0">
+            <ProgressBar IsIndeterminate="{Binding IsRunning}" Height="6"
+                         Visibility="{Binding IsRunning, Converter={StaticResource BoolToVisConverter}}" Margin="0,0,0,6"/>
+            <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" FontWeight="SemiBold"/>
+            <TextBlock Text="估算大小不等于实际释放的磁盘空间。结果基于当前索引与检查时的状态。" TextWrapping="Wrap" Foreground="#6B7280"/>
+        </StackPanel>
+    </Grid>
+</Window>
